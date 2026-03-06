@@ -506,7 +506,7 @@ class GallerySpyBuilder:
         possible_paths = [
             Path.home() / "AppData/Local/Android/Sdk/build-tools",
             Path("C:/Android/Sdk/build-tools"),
-            Path("/usr/local/android-sdk/build-tools",
+            Path("/usr/local/android-sdk/build-tools"),
             Path.home() / "Android/Sdk/build-tools",
         ]
         
